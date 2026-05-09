@@ -4,107 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Takeout Tinder</title>
+    <!-- Import Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #121212;
-            color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .header {
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .card-container {
-            position: relative;
-            width: 300px;
-            height: 400px;
-        }
-        .card {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            background-color: #2c2c2c;
-            border-radius: 20px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-            font-size: 24px;
-            text-align: center;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .card img {
-            width: 80%;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        .controls {
-            display: flex;
-            gap: 40px;
-            margin-top: 30px;
-        }
-        .btn {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            border: none;
-            font-size: 30px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            transition: transform 0.1s;
-        }
-        .btn:active {
-            transform: scale(0.9);
-        }
-        .btn-nope {
-            background-color: #ff4b4b;
-            color: white;
-        }
-        .btn-yum {
-            background-color: #4cd964;
-            color: white;
-        }
-        .match-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 75, 75, 0.9);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-            font-weight: bold;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-            z-index: 100;
-        }
+        body { margin: 0; background-color: #121212; color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .card-container { position: relative; width: 300px; height: 400px; }
+        .card { position: absolute; width: 100%; height: 100%; background-color: #2c2c2c; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.3s ease-out, opacity 0.3s ease-out; font-size: 24px; text-align: center; padding: 20px; box-sizing: border-box; }
+        .card img { width: 80%; border-radius: 10px; margin-bottom: 20px; }
+        .controls { display: flex; gap: 40px; margin-top: 30px; }
+        .btn { width: 70px; height: 70px; border-radius: 50%; border: none; font-size: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: transform 0.1s; }
+        .btn:active { transform: scale(0.9); }
+        .btn-nope { background-color: #ff4b4b; color: white; }
+        .btn-yum { background-color: #4cd964; color: white; }
+        .match-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 75, 75, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 40px; font-weight: bold; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 100; }
+        .share-banner { background: #333; padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 14px; cursor: pointer; border: 1px solid #555;}
     </style>
 </head>
 <body>
 
     <div class="header">
         <h2>Takeout Tinder 🍕</h2>
-        <p>What are we eating tonight?</p>
+        <div id="shareBanner" class="share-banner" style="display: none;" onclick="copyLink()">
+            📋 Click to copy invite link for your partner!
+        </div>
     </div>
 
-    <div class="card-container" id="cardContainer">
-        <!-- Cards will be injected here via JS -->
-    </div>
+    <div class="card-container" id="cardContainer"></div>
 
     <div class="controls">
         <button class="btn btn-nope" onclick="swipe('left')">✖</button>
@@ -113,12 +39,17 @@
 
     <div class="match-overlay" id="matchOverlay">
         🎉 IT'S A MATCH! 🎉
-        <p style="font-size: 20px; font-weight: normal;">You both want this!</p>
-        <button onclick="closeMatch()" style="margin-top:20px; padding: 10px 20px; border-radius: 20px; border: none; cursor: pointer;">Keep Swiping</button>
+        <p id="matchText" style="font-size: 20px; font-weight: normal;"></p>
+        <button onclick="closeMatch()" style="margin-top:20px; padding: 10px 20px; border-radius: 20px; border: none; cursor: pointer; font-size: 16px;">Keep Swiping</button>
     </div>
 
     <script>
-        // Customize your food database here! 
+        // 🛑 PASTE YOUR SUPABASE KEYS HERE 🛑
+        const SUPABASE_URL = 'https://lyksieojzapivinybwwe.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_DByr8NiJ6qQnmcYMrHNxyw_gQQber-5';
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         const foods = [
             { id: 1, name: "Spicy Seblak", emoji: "🍜" },
             { id: 2, name: "Matcha Mille Crepe", emoji: "🍰" },
@@ -128,40 +59,75 @@
         ];
 
         let currentIndex = 0;
-        const container = document.getElementById('cardContainer');
+        let roomCode = null;
+        let playerRole = null; // 'a' or 'b'
+        let partnerLink = "";
+
+        async function initSession() {
+            const urlParams = new URLSearchParams(window.location.search);
+            roomCode = urlParams.get('room');
+            playerRole = urlParams.get('u');
+
+            if (!roomCode || !playerRole) {
+                // You are creating the room (User A)
+                roomCode = Math.random().toString(36).substring(2, 8);
+                playerRole = 'a';
+                
+                // Update URL without reloading
+                const newUrl = `${window.location.pathname}?room=${roomCode}&u=a`;
+                window.history.replaceState({}, '', newUrl);
+                
+                // Insert room into database
+                await supabase.from('sessions').insert([{ id: roomCode }]);
+
+                // Show share banner
+                partnerLink = `${window.location.origin}${window.location.pathname}?room=${roomCode}&u=b`;
+                document.getElementById('shareBanner').style.display = 'block';
+            }
+
+            subscribeToRoom();
+            renderCard();
+        }
+
+        function copyLink() {
+            navigator.clipboard.writeText(partnerLink);
+            document.getElementById('shareBanner').innerText = "✅ Link copied! Send it!";
+        }
 
         function renderCard() {
+            const container = document.getElementById('cardContainer');
             if (currentIndex >= foods.length) {
                 container.innerHTML = "<div class='card'>No more food! 😭</div>";
                 return;
             }
-            
             const food = foods[currentIndex];
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.id = 'currentCard';
-            card.innerHTML = `<div style="font-size: 80px; margin-bottom: 20px;">${food.emoji}</div>
-                              <div><strong>${food.name}</strong></div>`;
-            container.innerHTML = '';
-            container.appendChild(card);
+            container.innerHTML = `
+                <div class='card' id='currentCard'>
+                    <div style="font-size: 80px; margin-bottom: 20px;">${food.emoji}</div>
+                    <div><strong>${food.name}</strong></div>
+                </div>`;
         }
 
-        function swipe(direction) {
+        async function swipe(direction) {
             if (currentIndex >= foods.length) return;
 
             const card = document.getElementById('currentCard');
-            const xMove = direction === 'left' ? -300 : 300;
-            const rotate = direction === 'left' ? -20 : 20;
-
-            card.style.transform = `translate(${xMove}px, -50px) rotate(${rotate}deg)`;
+            const foodId = foods[currentIndex].id;
+            
+            card.style.transform = `translate(${direction === 'left' ? -300 : 300}px, -50px) rotate(${direction === 'left' ? -20 : 20}deg)`;
             card.style.opacity = '0';
 
-            // Simulate a "Match" if you swipe right on the 4th item (Martabak)
-            if (direction === 'right' && foods[currentIndex].name === "Martabak Manis") {
-                setTimeout(() => {
-                    document.getElementById('matchOverlay').style.opacity = '1';
-                    document.getElementById('matchOverlay').style.pointerEvents = 'auto';
-                }, 300);
+            // If swiped right (Yum), update the database
+            if (direction === 'right') {
+                const columnToUpdate = playerRole === 'a' ? 'user_a_likes' : 'user_b_likes';
+                
+                // SQL array append equivalent via RPC/update
+                const { data } = await supabase.from('sessions').select(columnToUpdate).eq('id', roomCode).single();
+                const currentLikes = data[columnToUpdate] || [];
+                
+                await supabase.from('sessions')
+                    .update({ [columnToUpdate]: [...currentLikes, foodId] })
+                    .eq('id', roomCode);
             }
 
             setTimeout(() => {
@@ -170,13 +136,39 @@
             }, 300);
         }
 
+        // The Real-Time Listener
+        function subscribeToRoom() {
+            supabase.channel('custom-all-channel')
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${roomCode}` }, payload => {
+                    checkForMatch(payload.new);
+                })
+                .subscribe();
+        }
+
+        function checkForMatch(sessionRow) {
+            const likesA = sessionRow.user_a_likes || [];
+            const likesB = sessionRow.user_b_likes || [];
+            
+            // Find intersection
+            const commonIds = likesA.filter(id => likesB.includes(id));
+            
+            if (commonIds.length > 0) {
+                // Get the most recent match
+                const matchId = commonIds[commonIds.length - 1];
+                const matchedFood = foods.find(f => f.id === matchId);
+                
+                document.getElementById('matchText').innerText = `You both want ${matchedFood.name} ${matchedFood.emoji}!`;
+                document.getElementById('matchOverlay').style.opacity = '1';
+                document.getElementById('matchOverlay').style.pointerEvents = 'auto';
+            }
+        }
+
         function closeMatch() {
             document.getElementById('matchOverlay').style.opacity = '0';
             document.getElementById('matchOverlay').style.pointerEvents = 'none';
         }
 
-        // Initialize the first card
-        renderCard();
+        initSession();
     </script>
 </body>
 </html>
