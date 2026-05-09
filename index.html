@@ -404,6 +404,32 @@
         document.getElementById('progressLabel').innerText = `${currentIndex} / ${foods.length}`;
     }
 
+    // Touch / Swipe support for iPad and Mobile
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    // Listen for where the finger starts touching the screen
+    document.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    // Listen for where the finger leaves the screen
+    document.addEventListener('touchend', e => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleTouchGesture();
+    }, { passive: true });
+
+    // If the finger moved more than 50 pixels, trigger the swipe
+    function handleTouchGesture() {
+        const swipeThreshold = 50;
+        if (touchEndX < touchStartX - swipeThreshold) {
+            swipe('left');  // Swiped left
+        }
+        if (touchEndX > touchStartX + swipeThreshold) {
+            swipe('right'); // Swiped right
+        }
+    }
+
     async function initSession() {
         const urlParams = new URLSearchParams(window.location.search);
         roomCode = urlParams.get('room');
@@ -457,6 +483,57 @@
         updateProgress();
     }
 
+    async function renderFinalSummary(sessionData = null) {
+        const container = document.getElementById('cardContainer');
+        
+        // If data isn't passed from the live listener, fetch it from Supabase
+        let data = sessionData;
+        if (!data) {
+            container.innerHTML = `<div class='card done-card'>Sedang memuat hasil... ⏳</div>`;
+            const res = await supabaseClient.from('sessions').select('*').eq('id', roomCode).single();
+            data = res.data;
+        }
+        if (!data) return;
+
+        // Grab arrays
+        const likesA = data.user_a_likes || [];
+        const likesB = data.user_b_likes || [];
+        const dislikesA = data.user_a_dislikes || [];
+        const dislikesB = data.user_b_dislikes || [];
+
+        // Find intersections
+        const commonLikes = likesA.filter(id => likesB.includes(id));
+        const commonDislikes = dislikesA.filter(id => dislikesB.includes(id));
+
+        // Map the IDs back to the actual food names
+        const likedFoods = commonLikes.map(id => foods.find(f => f.id === id)?.name).filter(Boolean);
+        const dislikedFoods = commonDislikes.map(id => foods.find(f => f.id === id)?.name).filter(Boolean);
+
+        // Build the HTML UI for the receipt
+        container.innerHTML = `
+            <div class='card done-card' style='justify-content: flex-start; align-items: stretch; padding: 25px 20px; overflow-y: auto; text-align: left;'>
+                <h3 style='font-family:Syne,sans-serif;font-size:22px;margin-bottom:15px;text-align:center;'>Hasil Akhir 🏁</h3>
+                
+                <div style='margin-bottom: 15px; background: rgba(46, 204, 113, 0.1); padding: 12px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3);'>
+                    <strong style='color: var(--accent-green); display:block; margin-bottom: 6px;'>✅ Mutual Yums</strong>
+                    <ul style='margin-left: 20px; font-size: 14px; color: #eee; line-height: 1.6;'>
+                        ${likedFoods.length > 0 ? likedFoods.map(f => `<li>${f}</li>`).join('') : "<li style='list-style:none; margin-left:-20px;'>Belum ada 😭</li>"}
+                    </ul>
+                </div>
+
+                <div style='background: rgba(255, 61, 61, 0.1); padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 61, 61, 0.3);'>
+                    <strong style='color: var(--accent-red); display:block; margin-bottom: 6px;'>❌ Mutual Ews</strong>
+                    <ul style='margin-left: 20px; font-size: 14px; color: #eee; line-height: 1.6;'>
+                        ${dislikedFoods.length > 0 ? dislikedFoods.map(f => `<li>${f}</li>`).join('') : "<li style='list-style:none; margin-left:-20px;'>Belum ada 🤷‍♂️</li>"}
+                    </ul>
+                </div>
+                
+                <p style='font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 15px;'>
+                    (List ini update otomatis kalau pasanganmu masih swiping)
+                </p>
+            </div>`;
+    }
+
     function swipe(direction) {
         if (currentIndex >= foods.length) return;
         const card = document.getElementById('currentCard');
@@ -486,7 +563,7 @@
         }, 320);
     }
 
-    function subscribeToRoom() {
+function subscribeToRoom() {
         supabaseClient.channel('custom-all-channel')
             .on('postgres_changes', {
                 event: 'UPDATE',
@@ -495,6 +572,11 @@
                 filter: `id=eq.${roomCode}`
             }, payload => {
                 checkForMatch(payload.new);
+                
+                // NEW: If you are at the end screen, update the summary list live!
+                if (currentIndex >= foods.length) {
+                    renderFinalSummary(payload.new);
+                }
             })
             .subscribe();
     }
