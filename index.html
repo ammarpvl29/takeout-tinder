@@ -322,6 +322,7 @@
 </div>
 
 <script>
+    // 🛑 PASTE YOUR SUPABASE KEYS HERE 🛑
     const SUPABASE_URL = 'https://lyksieojzapivinybwwe.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_DByr8NiJ6qQnmcYMrHNxyw_gQQber-5';
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -386,8 +387,16 @@
     let partnerLink = "";
     let seenMatchIds = new Set();
     
-    // NEW: Local state array to prevent read/write race conditions when swiping fast
+    // Track both likes and dislikes locally
     let myLikesLocal = []; 
+    let myDislikesLocal = [];
+
+    // NEW: Deterministic Hash Function
+    function getHash(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+        return hash;
+    }
 
     function updateProgress() {
         const pct = Math.round((currentIndex / foods.length) * 100);
@@ -409,6 +418,9 @@
             partnerLink = `${window.location.origin}${window.location.pathname}?room=${roomCode}&u=b`;
             document.getElementById('shareBanner').style.display = 'block';
         }
+
+        // NEW: Sort the foods array pseudo-randomly using the roomCode as a seed
+        foods.sort((a, b) => getHash(roomCode + a.id) - getHash(roomCode + b.id));
 
         subscribeToRoom();
         renderCard();
@@ -445,7 +457,6 @@
         updateProgress();
     }
 
-    // ARCHITECTURE FIX: Swapped async await for a local push to keep UI instantly snappy
     function swipe(direction) {
         if (currentIndex >= foods.length) return;
         const card = document.getElementById('currentCard');
@@ -453,7 +464,6 @@
 
         const foodId = foods[currentIndex].id;
 
-        // show swipe label
         if (direction === 'right') document.getElementById('labelYum').style.opacity = '1';
         else document.getElementById('labelNope').style.opacity = '1';
 
@@ -462,15 +472,12 @@
 
         if (direction === 'right') {
             const columnToUpdate = playerRole === 'a' ? 'user_a_likes' : 'user_b_likes';
-            
-            // Push to local array immediately
             myLikesLocal.push(foodId);
-            
-            // Fire and forget to database using the entire local array
-            supabaseClient.from('sessions')
-                .update({ [columnToUpdate]: myLikesLocal })
-                .eq('id', roomCode)
-                .then(); 
+            supabaseClient.from('sessions').update({ [columnToUpdate]: myLikesLocal }).eq('id', roomCode).then(); 
+        } else if (direction === 'left') {
+            const columnToUpdate = playerRole === 'a' ? 'user_a_dislikes' : 'user_b_dislikes';
+            myDislikesLocal.push(foodId);
+            supabaseClient.from('sessions').update({ [columnToUpdate]: myDislikesLocal }).eq('id', roomCode).then(); 
         }
 
         setTimeout(() => {
@@ -495,17 +502,37 @@
     function checkForMatch(sessionRow) {
         const likesA = sessionRow.user_a_likes || [];
         const likesB = sessionRow.user_b_likes || [];
-        const commonIds = likesA.filter(id => likesB.includes(id));
+        const dislikesA = sessionRow.user_a_dislikes || [];
+        const dislikesB = sessionRow.user_b_dislikes || [];
 
-        const newMatches = commonIds.filter(id => !seenMatchIds.has(id));
-        if (newMatches.length > 0) {
-            const matchId = newMatches[newMatches.length - 1];
+        const commonLikes = likesA.filter(id => likesB.includes(id));
+        const commonDislikes = dislikesA.filter(id => dislikesB.includes(id));
+
+        const newLikeMatches = commonLikes.filter(id => !seenMatchIds.has(id));
+        const newDislikeMatches = commonDislikes.filter(id => !seenMatchIds.has(id));
+
+        if (newLikeMatches.length > 0) {
+            const matchId = newLikeMatches[newLikeMatches.length - 1];
             seenMatchIds.add(matchId);
             const matchedFood = foods.find(f => f.id === matchId);
             if (!matchedFood) return;
 
             document.getElementById('matchEmoji').innerText = matchedFood.emoji;
+            document.querySelector('.match-title').innerText = "IT'S A MATCH!";
+            document.querySelector('.match-title').style.color = "var(--accent-yellow)";
             document.getElementById('matchText').innerText = `Kalian berdua mau ${matchedFood.name}! Hayuk order sekarang 🛵`;
+            document.getElementById('matchOverlay').classList.add('active');
+            
+        } else if (newDislikeMatches.length > 0) {
+            const matchId = newDislikeMatches[newDislikeMatches.length - 1];
+            seenMatchIds.add(matchId);
+            const matchedFood = foods.find(f => f.id === matchId);
+            if (!matchedFood) return;
+
+            document.getElementById('matchEmoji').innerText = "🙅‍♂️🙅‍♀️";
+            document.querySelector('.match-title').innerText = "MUTUAL EW!";
+            document.querySelector('.match-title').style.color = "var(--accent-red)";
+            document.getElementById('matchText').innerText = `Kalian berdua sama-sama ogah makan ${matchedFood.name}. Skip! ❌`;
             document.getElementById('matchOverlay').classList.add('active');
         }
     }
@@ -514,7 +541,6 @@
         document.getElementById('matchOverlay').classList.remove('active');
     }
 
-    // keyboard support
     document.addEventListener('keydown', e => {
         if (e.key === 'ArrowLeft')  swipe('left');
         if (e.key === 'ArrowRight') swipe('right');
