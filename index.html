@@ -4,172 +4,523 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Takeout Tinder</title>
-    <!-- Import Supabase -->
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; background-color: #121212; color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .card-container { position: relative; width: 300px; height: 400px; }
-        .card { position: absolute; width: 100%; height: 100%; background-color: #2c2c2c; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.3s ease-out, opacity 0.3s ease-out; font-size: 24px; text-align: center; padding: 20px; box-sizing: border-box; }
-        .card img { width: 80%; border-radius: 10px; margin-bottom: 20px; }
-        .controls { display: flex; gap: 40px; margin-top: 30px; }
-        .btn { width: 70px; height: 70px; border-radius: 50%; border: none; font-size: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: transform 0.1s; }
-        .btn:active { transform: scale(0.9); }
-        .btn-nope { background-color: #ff4b4b; color: white; }
-        .btn-yum { background-color: #4cd964; color: white; }
-        .match-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 75, 75, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 40px; font-weight: bold; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 100; }
-        .share-banner { background: #333; padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 14px; cursor: pointer; border: 1px solid #555;}
+        :root {
+            --bg: #0e0e0e;
+            --card-bg: #1a1a1a;
+            --card-border: #2a2a2a;
+            --accent-red: #ff3d3d;
+            --accent-green: #2ecc71;
+            --accent-yellow: #f5c518;
+            --text: #f0f0f0;
+            --text-muted: #888;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 16px;
+        }
+
+        /* subtle radial glow behind everything */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(255,61,61,0.07) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 18px;
+        }
+
+        .header h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text);
+        }
+
+        .header h2 span { color: var(--accent-red); }
+
+        .progress-bar-wrap {
+            width: 280px;
+            height: 4px;
+            background: #222;
+            border-radius: 99px;
+            margin: 8px auto 0;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-red), var(--accent-yellow));
+            border-radius: 99px;
+            transition: width 0.4s ease;
+        }
+
+        .progress-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        /* Share banner */
+        .share-banner {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            padding: 9px 16px;
+            border-radius: 10px;
+            margin: 10px auto 0;
+            text-align: center;
+            font-size: 13px;
+            cursor: pointer;
+            max-width: 300px;
+            color: var(--text-muted);
+            transition: border-color 0.2s;
+        }
+        .share-banner:hover { border-color: var(--accent-red); color: var(--text); }
+
+        /* Card Stack */
+        .card-container {
+            position: relative;
+            width: 290px;
+            height: 370px;
+        }
+
+        /* ghost cards behind for depth */
+        .card-container::before,
+        .card-container::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: var(--card-bg);
+            border-radius: 22px;
+            border: 1px solid var(--card-border);
+        }
+        .card-container::after  { transform: rotate(-3deg) scale(0.95); top: 8px; z-index: 0; opacity: 0.5; }
+        .card-container::before { transform: rotate(2deg) scale(0.96); top: 4px; z-index: 0; opacity: 0.3; }
+
+        .card {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 22px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease;
+            padding: 24px 20px;
+            z-index: 1;
+            user-select: none;
+        }
+
+        .card-emoji {
+            font-size: 78px;
+            line-height: 1;
+            margin-bottom: 16px;
+            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.5));
+        }
+
+        .card-name {
+            font-family: 'Syne', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .card-tag {
+            margin-top: 8px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            background: #252525;
+            border: 1px solid #333;
+            padding: 3px 10px;
+            border-radius: 99px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        /* swipe indicators */
+        .card-label-yum,
+        .card-label-nope {
+            position: absolute;
+            top: 22px;
+            font-family: 'Syne', sans-serif;
+            font-size: 22px;
+            font-weight: 800;
+            border: 3px solid;
+            padding: 4px 12px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.15s;
+            pointer-events: none;
+        }
+        .card-label-yum { left: 18px; color: var(--accent-green); border-color: var(--accent-green); transform: rotate(-8deg); }
+        .card-label-nope { right: 18px; color: var(--accent-red); border-color: var(--accent-red); transform: rotate(8deg); }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 36px;
+            margin-top: 26px;
+            align-items: center;
+        }
+
+        .btn {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: none;
+            font-size: 26px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            transition: transform 0.12s, box-shadow 0.12s;
+            position: relative;
+        }
+        .btn:active { transform: scale(0.88); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+
+        .btn-nope { background: #ff3d3d; color: white; }
+        .btn-yum  { background: #2ecc71; color: white; }
+
+        .btn-label {
+            position: absolute;
+            bottom: -20px;
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        /* Match overlay */
+        .match-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: bold;
+            font-family: 'Syne', sans-serif;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.35s;
+            z-index: 100;
+            text-align: center;
+            padding: 24px;
+        }
+
+        .match-overlay.active { opacity: 1; pointer-events: auto; }
+
+        .match-overlay .match-emoji { font-size: 80px; margin-bottom: 12px; animation: pop 0.4s ease; }
+
+        @keyframes pop {
+            0%   { transform: scale(0.5); }
+            70%  { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .match-overlay .match-title {
+            color: var(--accent-yellow);
+            font-size: 30px;
+            margin-bottom: 8px;
+        }
+
+        .match-overlay .match-sub {
+            font-size: 17px;
+            font-weight: 400;
+            color: var(--text-muted);
+            font-family: 'DM Sans', sans-serif;
+            max-width: 260px;
+            line-height: 1.5;
+        }
+
+        .match-overlay button {
+            margin-top: 28px;
+            padding: 12px 28px;
+            border-radius: 99px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: 'Syne', sans-serif;
+            background: var(--accent-yellow);
+            color: #111;
+            letter-spacing: 0.3px;
+            transition: transform 0.1s;
+        }
+        .match-overlay button:active { transform: scale(0.95); }
+
+        /* Done state */
+        .done-card {
+            text-align: center;
+        }
+        .done-card .done-emoji { font-size: 60px; margin-bottom: 12px; }
+        .done-card p { color: var(--text-muted); font-size: 14px; line-height: 1.6; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h2>Takeout Tinder 🍕</h2>
-        <div id="shareBanner" class="share-banner" style="display: none;" onclick="copyLink()">
-            📋 Click to copy invite link for your partner!
-        </div>
+<div class="header">
+    <h2>Takeout <span>Tinder</span> 🍕</h2>
+    <div id="shareBanner" class="share-banner" style="display:none;" onclick="copyLink()">
+        📋 Klik untuk copy link buat pasanganmu!
     </div>
-
-    <div class="card-container" id="cardContainer"></div>
-
-    <div class="controls">
-        <button class="btn btn-nope" onclick="swipe('left')">✖</button>
-        <button class="btn btn-yum" onclick="swipe('right')">❤</button>
+    <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
     </div>
+    <div class="progress-label" id="progressLabel">0 / 0</div>
+</div>
 
-    <div class="match-overlay" id="matchOverlay">
-        🎉 IT'S A MATCH! 🎉
-        <p id="matchText" style="font-size: 20px; font-weight: normal;"></p>
-        <button onclick="closeMatch()" style="margin-top:20px; padding: 10px 20px; border-radius: 20px; border: none; cursor: pointer; font-size: 16px;">Keep Swiping</button>
-    </div>
+<div class="card-container" id="cardContainer"></div>
 
-    <script>
-        // 🛑 PASTE YOUR SUPABASE KEYS HERE 🛑
-        const SUPABASE_URL = 'https://lyksieojzapivinybwwe.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_DByr8NiJ6qQnmcYMrHNxyw_gQQber-5';
-        
-        // FIX: Renamed to supabaseClient to avoid naming collision
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+<div class="controls">
+    <button class="btn btn-nope" onclick="swipe('left')">
+        ✖
+        <span class="btn-label">Nope</span>
+    </button>
+    <button class="btn btn-yum" onclick="swipe('right')">
+        ❤
+        <span class="btn-label">Yum!</span>
+    </button>
+</div>
 
-        const foods = [
-            { id: 1, name: "Spicy Seblak", emoji: "🍜" },
-            { id: 2, name: "Matcha Mille Crepe", emoji: "🍰" },
-            { id: 3, name: "Wagyu Katsu", emoji: "🥩" },
-            { id: 4, name: "Martabak Manis", emoji: "🥞" },
-            { id: 5, name: "Dimsum", emoji: "🥟" }
-        ];
+<div class="match-overlay" id="matchOverlay">
+    <div class="match-emoji" id="matchEmoji">🎉</div>
+    <div class="match-title">IT'S A MATCH!</div>
+    <div class="match-sub" id="matchText"></div>
+    <button onclick="closeMatch()">Keep Swiping →</button>
+</div>
 
-        let currentIndex = 0;
-        let roomCode = null;
-        let playerRole = null; // 'a' or 'b'
-        let partnerLink = "";
+<script>
+    const SUPABASE_URL = 'https://lyksieojzapivinybwwe.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_DByr8NiJ6qQnmcYMrHNxyw_gQQber-5';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        async function initSession() {
-            const urlParams = new URLSearchParams(window.location.search);
-            roomCode = urlParams.get('room');
-            playerRole = urlParams.get('u');
+    const foods = [
+        // ── Personal favs ──────────────────────────────────
+        { id: 1,  name: "Sate Bu Ngantuk",             emoji: "🍢", tag: "personal fav" },
+        { id: 2,  name: "Cheesecake Pipinos",          emoji: "🍰", tag: "personal fav" },
+        { id: 3,  name: "Nachos Tuna + Onion",         emoji: "🌮", tag: "personal fav" },
+        { id: 4,  name: "Cheese Pizza",                emoji: "🍕", tag: "personal fav" },
+        { id: 5,  name: "Pepperoni Pizza",             emoji: "🍕", tag: "personal fav" },
+        { id: 6,  name: "Single Cheeseburger",         emoji: "🍔", tag: "personal fav" },
+        { id: 7,  name: "Lontong Kari (tanpa lontong)",  emoji: "🍛", tag: "personal fav" },
+        { id: 8,  name: "Matcha XXI",                  emoji: "🍵", tag: "personal fav" },
+        { id: 9,  name: "Marugame Udon",               emoji: "🍜", tag: "personal fav" },
+        { id: 10, name: "Minuman Sehat Kimia Farma",   emoji: "🥤", tag: "personal fav" },
+        { id: 11, name: "Kopi Susu Pipinos",           emoji: "☕", tag: "personal fav" },
+        { id: 12, name: "Es Krim Arcade Game (tanpa matcha)", emoji: "🍦", tag: "personal fav" },
+        { id: 13, name: "Popcorn XXI",                 emoji: "🍿", tag: "personal fav" },
+        { id: 14, name: "Dimsum Boss",                 emoji: "🥟", tag: "personal fav" },
+        { id: 15, name: "Butterscotch Café – Srihadi",  emoji: "🧇", tag: "personal fav" },
+        { id: 16, name: "Latte – Srihadi",             emoji: "☕", tag: "personal fav" },
 
-            if (!roomCode || !playerRole) {
-                // You are creating the room (User A)
-                roomCode = Math.random().toString(36).substring(2, 8);
-                playerRole = 'a';
-                
-                // Update URL without reloading
-                const newUrl = `${window.location.pathname}?room=${roomCode}&u=a`;
-                window.history.replaceState({}, '', newUrl);
-                
-                // Insert room into database using the new client name
-                await supabaseClient.from('sessions').insert([{ id: roomCode }]);
+        // ── Jakarta street food ─────────────────────────────
+        { id: 17, name: "Nasi Goreng Gila",            emoji: "🍳", tag: "jakarta" },
+        { id: 18, name: "Mie Ayam Bakso",              emoji: "🍜", tag: "jakarta" },
+        { id: 19, name: "Soto Betawi",                 emoji: "🥣", tag: "jakarta" },
+        { id: 20, name: "Gado-Gado",                   emoji: "🥗", tag: "jakarta" },
+        { id: 21, name: "Kerak Telor",                 emoji: "🍳", tag: "jakarta" },
+        { id: 22, name: "Nasi Uduk Komplit",           emoji: "🍚", tag: "jakarta" },
+        { id: 23, name: "Ketoprak",                    emoji: "🥙", tag: "jakarta" },
+        { id: 24, name: "Es Selendang Mayang",         emoji: "🍧", tag: "jakarta" },
+        { id: 25, name: "Bubur Ayam Betawi",           emoji: "🥣", tag: "jakarta" },
+        { id: 26, name: "Semur Jengkol",               emoji: "🍲", tag: "jakarta" },
+        { id: 27, name: "Pecel Lele",                  emoji: "🐟", tag: "jakarta" },
+        { id: 28, name: "Ayam Geprek",                 emoji: "🍗", tag: "jakarta" },
+        { id: 29, name: "Batagor",                     emoji: "🥚", tag: "jakarta" },
+        { id: 30, name: "Siomay",                      emoji: "🥟", tag: "jakarta" },
 
-                // Show share banner
-                partnerLink = `${window.location.origin}${window.location.pathname}?room=${roomCode}&u=b`;
-                document.getElementById('shareBanner').style.display = 'block';
-            }
+        // ── Bandung specialties ─────────────────────────────
+        { id: 31, name: "Seblak Spicy",                emoji: "🍜", tag: "bandung" },
+        { id: 32, name: "Baso Aci",                    emoji: "🍡", tag: "bandung" },
+        { id: 33, name: "Cireng Rujak",                emoji: "🫓", tag: "bandung" },
+        { id: 34, name: "Nasi Timbel",                 emoji: "🍃", tag: "bandung" },
+        { id: 35, name: "Surabi Bandung",              emoji: "🥞", tag: "bandung" },
+        { id: 36, name: "Cuanki",                      emoji: "🍢", tag: "bandung" },
+        { id: 37, name: "Mie Kocok",                   emoji: "🍜", tag: "bandung" },
+        { id: 38, name: "Colenak",                     emoji: "🫕", tag: "bandung" },
+        { id: 39, name: "Es Cendol",                   emoji: "🥤", tag: "bandung" },
+        { id: 40, name: "Martabak Telur",              emoji: "🥚", tag: "bandung" },
+        { id: 41, name: "Martabak Manis",              emoji: "🥞", tag: "bandung" },
+        { id: 42, name: "Lotek",                       emoji: "🥗", tag: "bandung" },
+        { id: 43, name: "Nasi Tutug Oncom",            emoji: "🍚", tag: "bandung" },
+        { id: 44, name: "Dimsum",                      emoji: "🥟", tag: "classic" },
+        { id: 45, name: "Wagyu Katsu",                 emoji: "🥩", tag: "classic" },
+        { id: 46, name: "Matcha Mille Crepe",          emoji: "🍰", tag: "classic" },
+    ];
 
-            subscribeToRoom();
-            renderCard();
+    let currentIndex = 0;
+    let roomCode = null;
+    let playerRole = null;
+    let partnerLink = "";
+    let seenMatchIds = new Set();
+    
+    // NEW: Local state array to prevent read/write race conditions when swiping fast
+    let myLikesLocal = []; 
+
+    function updateProgress() {
+        const pct = Math.round((currentIndex / foods.length) * 100);
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('progressLabel').innerText = `${currentIndex} / ${foods.length}`;
+    }
+
+    async function initSession() {
+        const urlParams = new URLSearchParams(window.location.search);
+        roomCode = urlParams.get('room');
+        playerRole = urlParams.get('u');
+
+        if (!roomCode || !playerRole) {
+            roomCode = Math.random().toString(36).substring(2, 8);
+            playerRole = 'a';
+            const newUrl = `${window.location.pathname}?room=${roomCode}&u=a`;
+            window.history.replaceState({}, '', newUrl);
+            await supabaseClient.from('sessions').insert([{ id: roomCode }]);
+            partnerLink = `${window.location.origin}${window.location.pathname}?room=${roomCode}&u=b`;
+            document.getElementById('shareBanner').style.display = 'block';
         }
 
-        function copyLink() {
-            navigator.clipboard.writeText(partnerLink);
-            document.getElementById('shareBanner').innerText = "✅ Link copied! Send it!";
-        }
+        subscribeToRoom();
+        renderCard();
+        updateProgress();
+    }
 
-        function renderCard() {
-            const container = document.getElementById('cardContainer');
-            if (currentIndex >= foods.length) {
-                container.innerHTML = "<div class='card'>No more food! 😭</div>";
-                return;
-            }
-            const food = foods[currentIndex];
+    function copyLink() {
+        navigator.clipboard.writeText(partnerLink);
+        document.getElementById('shareBanner').innerText = "✅ Link ter-copy! Kirim ke pasanganmu~";
+    }
+
+    function renderCard() {
+        const container = document.getElementById('cardContainer');
+        if (currentIndex >= foods.length) {
             container.innerHTML = `
-                <div class='card' id='currentCard'>
-                    <div style="font-size: 80px; margin-bottom: 20px;">${food.emoji}</div>
-                    <div><strong>${food.name}</strong></div>
+                <div class='card done-card'>
+                    <div class='done-emoji'>😭</div>
+                    <strong style='font-family:Syne,sans-serif;font-size:18px;'>Habis deh...</strong>
+                    <p style='margin-top:8px;'>Semua makanan udah di-swipe!<br>Semoga ada yang match 🤞</p>
                 </div>`;
+            return;
         }
 
-        async function swipe(direction) {
-            if (currentIndex >= foods.length) return;
+        const food = foods[currentIndex];
+        container.innerHTML = `
+            <div class='card' id='currentCard'>
+                <span class='card-label-yum' id='labelYum'>YUM ❤</span>
+                <span class='card-label-nope' id='labelNope'>NOPE ✖</span>
+                <div class='card-emoji'>${food.emoji}</div>
+                <div class='card-name'>${food.name}</div>
+                <div class='card-tag'>${food.tag}</div>
+            </div>`;
 
-            const card = document.getElementById('currentCard');
-            const foodId = foods[currentIndex].id;
+        updateProgress();
+    }
+
+    // ARCHITECTURE FIX: Swapped async await for a local push to keep UI instantly snappy
+    function swipe(direction) {
+        if (currentIndex >= foods.length) return;
+        const card = document.getElementById('currentCard');
+        if (!card) return;
+
+        const foodId = foods[currentIndex].id;
+
+        // show swipe label
+        if (direction === 'right') document.getElementById('labelYum').style.opacity = '1';
+        else document.getElementById('labelNope').style.opacity = '1';
+
+        card.style.transform = `translate(${direction === 'left' ? -340 : 340}px, -40px) rotate(${direction === 'left' ? -18 : 18}deg)`;
+        card.style.opacity = '0';
+
+        if (direction === 'right') {
+            const columnToUpdate = playerRole === 'a' ? 'user_a_likes' : 'user_b_likes';
             
-            card.style.transform = `translate(${direction === 'left' ? -300 : 300}px, -50px) rotate(${direction === 'left' ? -20 : 20}deg)`;
-            card.style.opacity = '0';
-
-            // If swiped right (Yum), update the database
-            if (direction === 'right') {
-                const columnToUpdate = playerRole === 'a' ? 'user_a_likes' : 'user_b_likes';
-                
-                // SQL array append equivalent
-                const { data } = await supabaseClient.from('sessions').select(columnToUpdate).eq('id', roomCode).single();
-                const currentLikes = data[columnToUpdate] || [];
-                
-                await supabaseClient.from('sessions')
-                    .update({ [columnToUpdate]: [...currentLikes, foodId] })
-                    .eq('id', roomCode);
-            }
-
-            setTimeout(() => {
-                currentIndex++;
-                renderCard();
-            }, 300);
-        }
-
-        // The Real-Time Listener
-        function subscribeToRoom() {
-            supabaseClient.channel('custom-all-channel')
-                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${roomCode}` }, payload => {
-                    checkForMatch(payload.new);
-                })
-                .subscribe();
-        }
-
-        function checkForMatch(sessionRow) {
-            const likesA = sessionRow.user_a_likes || [];
-            const likesB = sessionRow.user_b_likes || [];
+            // Push to local array immediately
+            myLikesLocal.push(foodId);
             
-            // Find intersection
-            const commonIds = likesA.filter(id => likesB.includes(id));
-            
-            if (commonIds.length > 0) {
-                // Get the most recent match
-                const matchId = commonIds[commonIds.length - 1];
-                const matchedFood = foods.find(f => f.id === matchId);
-                
-                document.getElementById('matchText').innerText = `You both want ${matchedFood.name} ${matchedFood.emoji}!`;
-                document.getElementById('matchOverlay').style.opacity = '1';
-                document.getElementById('matchOverlay').style.pointerEvents = 'auto';
-            }
+            // Fire and forget to database using the entire local array
+            supabaseClient.from('sessions')
+                .update({ [columnToUpdate]: myLikesLocal })
+                .eq('id', roomCode)
+                .then(); 
         }
 
-        function closeMatch() {
-            document.getElementById('matchOverlay').style.opacity = '0';
-            document.getElementById('matchOverlay').style.pointerEvents = 'none';
-        }
+        setTimeout(() => {
+            currentIndex++;
+            renderCard();
+        }, 320);
+    }
 
-        initSession();
-    </script>
+    function subscribeToRoom() {
+        supabaseClient.channel('custom-all-channel')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'sessions',
+                filter: `id=eq.${roomCode}`
+            }, payload => {
+                checkForMatch(payload.new);
+            })
+            .subscribe();
+    }
+
+    function checkForMatch(sessionRow) {
+        const likesA = sessionRow.user_a_likes || [];
+        const likesB = sessionRow.user_b_likes || [];
+        const commonIds = likesA.filter(id => likesB.includes(id));
+
+        const newMatches = commonIds.filter(id => !seenMatchIds.has(id));
+        if (newMatches.length > 0) {
+            const matchId = newMatches[newMatches.length - 1];
+            seenMatchIds.add(matchId);
+            const matchedFood = foods.find(f => f.id === matchId);
+            if (!matchedFood) return;
+
+            document.getElementById('matchEmoji').innerText = matchedFood.emoji;
+            document.getElementById('matchText').innerText = `Kalian berdua mau ${matchedFood.name}! Hayuk order sekarang 🛵`;
+            document.getElementById('matchOverlay').classList.add('active');
+        }
+    }
+
+    function closeMatch() {
+        document.getElementById('matchOverlay').classList.remove('active');
+    }
+
+    // keyboard support
+    document.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft')  swipe('left');
+        if (e.key === 'ArrowRight') swipe('right');
+    });
+
+    initSession();
+</script>
 </body>
 </html>
