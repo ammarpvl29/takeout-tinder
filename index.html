@@ -48,7 +48,8 @@
         const SUPABASE_URL = 'https://lyksieojzapivinybwwe.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_DByr8NiJ6qQnmcYMrHNxyw_gQQber-5';
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // FIX: Renamed to supabaseClient to avoid naming collision
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const foods = [
             { id: 1, name: "Spicy Seblak", emoji: "🍜" },
@@ -77,8 +78,8 @@
                 const newUrl = `${window.location.pathname}?room=${roomCode}&u=a`;
                 window.history.replaceState({}, '', newUrl);
                 
-                // Insert room into database
-                await supabase.from('sessions').insert([{ id: roomCode }]);
+                // Insert room into database using the new client name
+                await supabaseClient.from('sessions').insert([{ id: roomCode }]);
 
                 // Show share banner
                 partnerLink = `${window.location.origin}${window.location.pathname}?room=${roomCode}&u=b`;
@@ -121,11 +122,11 @@
             if (direction === 'right') {
                 const columnToUpdate = playerRole === 'a' ? 'user_a_likes' : 'user_b_likes';
                 
-                // SQL array append equivalent via RPC/update
-                const { data } = await supabase.from('sessions').select(columnToUpdate).eq('id', roomCode).single();
+                // SQL array append equivalent
+                const { data } = await supabaseClient.from('sessions').select(columnToUpdate).eq('id', roomCode).single();
                 const currentLikes = data[columnToUpdate] || [];
                 
-                await supabase.from('sessions')
+                await supabaseClient.from('sessions')
                     .update({ [columnToUpdate]: [...currentLikes, foodId] })
                     .eq('id', roomCode);
             }
@@ -138,7 +139,7 @@
 
         // The Real-Time Listener
         function subscribeToRoom() {
-            supabase.channel('custom-all-channel')
+            supabaseClient.channel('custom-all-channel')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${roomCode}` }, payload => {
                     checkForMatch(payload.new);
                 })
